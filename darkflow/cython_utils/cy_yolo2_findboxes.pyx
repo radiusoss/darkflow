@@ -56,19 +56,21 @@ def box_constructor(meta,np.ndarray[float,ndim=3] net_out_in):
         np.intp_t row1, col1, box_loop1,index,index2
         float  threshold = meta['thresh']
         float tempc,arr_max=0,sum=0
+        int aggregate_categories = False
         double[:] anchors = np.asarray(meta['anchors'])
         list boxes = list()
 
     H, W, _ = meta['out_size']
     C = meta['classes']
     B = meta['num']
+    consolidate_classes = meta['consolidate_classes']
     
     cdef:
         float[:, :, :, ::1] net_out = net_out_in.reshape([H, W, B, net_out_in.shape[2]/B])
         float[:, :, :, ::1] Classes = net_out[:, :, :, 5:]
         float[:, :, :, ::1] Bbox_pred =  net_out[:, :, :, :5]
         float[:, :, :, ::1] probs = np.zeros((H, W, B, C), dtype=np.float32)
-    
+
     for row in range(H):
         for col in range(W):
             for box_loop in range(B):
@@ -86,12 +88,48 @@ def box_constructor(meta,np.ndarray[float,ndim=3] net_out_in):
                 for class_loop in range(C):
                     Classes[row,col,box_loop,class_loop]=exp(Classes[row,col,box_loop,class_loop]-arr_max)
                     sum+=Classes[row,col,box_loop,class_loop]
-                
-                for class_loop in range(C):
-                    tempc = Classes[row, col, box_loop, class_loop] * Bbox_pred[row, col, box_loop, 4]/sum                    
-                    if(tempc > threshold):
-                        probs[row, col, box_loop, class_loop] = tempc
-    
-    
-    #NMS                    
+
+                if consolidate_classes:
+                    vehicle = 0.0
+
+                    curr_vehicle_class = -1
+                    curr_vehicle_tempc = -1.0
+
+                    person = 0.0
+                    curr_person_class = -1
+                    curr_person_tempc = -1.0
+
+                    # We are assuming:
+                    #{0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorbike', 4: 'airplane', 5: 'bus', 6: 'train',
+                    #7: 'truck', 8: 'boat', 9: 'traffic light'...}
+
+                    for class_loop in range(C):
+                        tempc = Classes[row, col, box_loop, class_loop] * Bbox_pred[row, col, box_loop, 4]/sum
+                        if(class_loop == 2 or class_loop==5 or class_loop==6 or class_loop==7):
+                            vehicle += tempc
+                            if tempc > curr_vehicle_tempc:
+                                curr_vehicle_class = class_loop
+                                curr_vehicle_tempc = tempc
+
+                        if(class_loop == 0 or class_loop==1 or class_loop==4):
+                            person += tempc
+                            if tempc > curr_person_tempc:
+                                curr_person_class = class_loop
+                                curr_person_tempc = tempc
+
+                    if(vehicle>threshold):
+                        probs[row, col, box_loop, curr_vehicle_class] = vehicle
+
+                    if(person>threshold):
+                        probs[row, col, box_loop, curr_person_class] = person
+
+                else:
+                    for class_loop in range(C):
+                        tempc = Classes[row, col, box_loop, class_loop] * Bbox_pred[row, col, box_loop, 4]/sum
+                        if(tempc > threshold):
+                            probs[row, col, box_loop, class_loop] = tempc
+
+
+    pre_nms = NMS(np.ascontiguousarray(probs).reshape(H*W*B,C), np.ascontiguousarray(Bbox_pred).reshape(H*B*W,5))
+
     return NMS(np.ascontiguousarray(probs).reshape(H*W*B,C), np.ascontiguousarray(Bbox_pred).reshape(H*B*W,5))

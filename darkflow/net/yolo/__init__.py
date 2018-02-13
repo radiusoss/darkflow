@@ -35,3 +35,4 @@ def constructor(self, meta, FLAGS):
 	# over-ride the threshold in meta if FLAGS has it.
 	if FLAGS.threshold > 0.0:
 		self.meta['thresh'] = FLAGS.threshold
+	self.meta['consolidate_classes'] = FLAGS.consolidate_classes
