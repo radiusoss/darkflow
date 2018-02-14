@@ -4,27 +4,34 @@ from ..utils import loader
 import warnings
 import time
 import os
+import logging
+
+FORMAT = '%(asctime)-15s %(message)s'
+logging.basicConfig(format=FORMAT, level='INFO')
+logger = logging.getLogger(__name__)
 
 class Darknet(object):
 
     _EXT = '.weights'
 
     def __init__(self, FLAGS):
+        start = time.time()
         self.get_weight_src(FLAGS)
         self.modify = False
 
-        print('Parsing {}'.format(self.src_cfg))
+        #logger.info('Parsing {}'.format(self.src_cfg))
         src_parsed = self.parse_cfg(self.src_cfg, FLAGS)
         self.src_meta, self.src_layers = src_parsed
         
         if self.src_cfg == FLAGS.model:
             self.meta, self.layers = src_parsed
         else: 
-        	print('Parsing {}'.format(FLAGS.model))
+        	#logger.info('Parsing {}'.format(FLAGS.model))
         	des_parsed = self.parse_cfg(FLAGS.model, FLAGS)
         	self.meta, self.layers = des_parsed
-
         self.load_weights()
+        stop = time.time()
+        logger.info(f'Darkflow finished loading {self.src_bin} in {stop-start}s')
 
     def get_weight_src(self, FLAGS):
         """
@@ -56,7 +63,6 @@ class Darknet(object):
             self.src_cfg = cfg_path
             FLAGS.load = int()
 
-
     def parse_cfg(self, model, FLAGS):
         """
         return a list of `layers` objects (darkop.py)
@@ -75,12 +81,9 @@ class Darknet(object):
         """
         Use `layers` and Loader to load .weights file
         """
-        print('Loading {} ...'.format(self.src_bin))
-        start = time.time()
+        #logger.info('Loading {} ...'.format(self.src_bin))
 
         args = [self.src_bin, self.src_layers]
         wgts_loader = loader.create_loader(*args)
         for layer in self.layers: layer.load(wgts_loader)
         
-        stop = time.time()
-        print('Finished in {}s'.format(stop - start))
