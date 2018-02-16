@@ -71,6 +71,12 @@ def box_constructor(meta,np.ndarray[float,ndim=3] net_out_in):
         float[:, :, :, ::1] Bbox_pred =  net_out[:, :, :, :5]
         float[:, :, :, ::1] probs = np.zeros((H, W, B, C), dtype=np.float32)
 
+    # We are assuming coco:
+    #{0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorbike', 4: 'airplane', 5: 'bus', 6: 'train',
+    #7: 'truck', 8: 'boat', 9: 'traffic light'...}
+
+    vehicle_classes = {2, 5, 6, 7}
+    person_classes = {0, 1, 3}
     for row in range(H):
         for col in range(W):
             for box_loop in range(B):
@@ -99,19 +105,15 @@ def box_constructor(meta,np.ndarray[float,ndim=3] net_out_in):
                     curr_person_class = -1
                     curr_person_tempc = -1.0
 
-                    # We are assuming:
-                    #{0: 'person', 1: 'bicycle', 2: 'car', 3: 'motorbike', 4: 'airplane', 5: 'bus', 6: 'train',
-                    #7: 'truck', 8: 'boat', 9: 'traffic light'...}
-
                     for class_loop in range(C):
                         tempc = Classes[row, col, box_loop, class_loop] * Bbox_pred[row, col, box_loop, 4]/sum
-                        if(class_loop == 2 or class_loop==5 or class_loop==6 or class_loop==7):
+                        if(class_loop in vehicle_classes):
                             vehicle += tempc
                             if tempc > curr_vehicle_tempc:
                                 curr_vehicle_class = class_loop
                                 curr_vehicle_tempc = tempc
 
-                        if(class_loop == 0 or class_loop==1 or class_loop==4):
+                        elif(class_loop in person_classes):
                             person += tempc
                             if tempc > curr_person_tempc:
                                 curr_person_class = class_loop
